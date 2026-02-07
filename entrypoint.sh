@@ -15,14 +15,14 @@ if [ -n "$FLY_APP_NAME" ]; then
 fi
 
 # Start the extraction service
-echo "[entrypoint] Starting extraction service on port 8080..."
+echo "[entrypoint] Starting extraction service on port 18943..."
 node dist/index.js &
 SERVICE_PID=$!
 
 # Wait for health check
 echo "[entrypoint] Waiting for service to be ready..."
 for i in $(seq 1 30); do
-  if curl -sf http://localhost:8080/health > /dev/null 2>&1; then
+  if curl -sf http://localhost:18943/health > /dev/null 2>&1; then
     echo "[entrypoint] Service is ready."
     break
   fi
@@ -41,7 +41,7 @@ if [ -n "$FLY_APP_NAME" ]; then
 else
   # Residential/other: start a Cloudflare Quick Tunnel
   echo "[entrypoint] Starting Cloudflare Quick Tunnel..."
-  cloudflared tunnel --url http://localhost:8080 --no-autoupdate 2>&1 | tee /tmp/cloudflared.log &
+  cloudflared tunnel --url http://localhost:18943 --no-autoupdate 2>&1 | tee /tmp/cloudflared.log &
   TUNNEL_PID=$!
 
   # Parse the tunnel URL from cloudflared output

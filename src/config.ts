@@ -2,11 +2,12 @@ import { hostname } from "node:os";
 
 const COORDINATOR_URL = "https://convertsmedia-api.keith-275.workers.dev";
 const FLY_BANDWIDTH_LIMIT_GB = 100;
+const DEFAULT_PORT = 18943;
 
 const isFly = Boolean(process.env.FLY_APP_NAME);
 
 export const config = {
-  port: parseInt(process.env.PORT || "8080", 10),
+  port: parseInt(process.env.PORT || String(DEFAULT_PORT), 10),
   coordinatorUrl: process.env.COORDINATOR_URL || COORDINATOR_URL,
   nodeName: process.env.NODE_NAME || (isFly ? `fly-${process.env.FLY_REGION || "unknown"}` : `node-${hostname()}`),
   nodeType: process.env.NODE_TYPE || (isFly ? "fly" : "residential"),
