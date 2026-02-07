@@ -30,6 +30,7 @@ app.post("/extract-audio", async (c) => {
     videoId?: string;
     poToken?: string;
     visitorData?: string;
+    clients?: string[];
   } | null = null;
 
   try {
@@ -44,8 +45,8 @@ app.post("/extract-audio", async (c) => {
   }
 
   try {
-    console.log(`[extract-audio] Starting extraction for ${videoId}`);
-    const audio = await extractAudio(videoId, body?.poToken, body?.visitorData);
+    console.log(`[extract-audio] Starting extraction for ${videoId} (clients: ${(body?.clients || ["default"]).join(",")})`);
+    const audio = await extractAudio(videoId, body?.poToken, body?.visitorData, body?.clients);
 
     const headers = new Headers();
     headers.set("content-type", audio.mimeType.split(";")[0].trim());

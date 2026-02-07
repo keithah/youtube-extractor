@@ -37,12 +37,14 @@ export async function extractAudio(
   videoId: string,
   poToken?: string,
   visitorData?: string,
+  clientOrder?: string[],
 ): Promise<ExtractedAudio> {
   const innertube = await getInnertube();
 
-  // WEB first on Node.js (full eval support, URLs work better with Range downloads).
-  // ANDROID URLs have stricter download protections that 403 on chunked requests.
-  const clients = ["WEB", "ANDROID", "TV_EMBEDDED"];
+  const VALID_CLIENTS = new Set(["WEB", "ANDROID", "TV_EMBEDDED"]);
+  const clients = clientOrder?.length
+    ? clientOrder.filter((c) => VALID_CLIENTS.has(c))
+    : ["WEB", "ANDROID", "TV_EMBEDDED"];
 
   let info: Awaited<ReturnType<typeof innertube.getInfo>> | null = null;
   let lastError: unknown;
