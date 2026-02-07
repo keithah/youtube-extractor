@@ -6,6 +6,7 @@
  */
 
 import Innertube from "youtubei.js";
+import { config } from "./config.js";
 
 const YOUTUBE_USER_AGENT =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36";
@@ -42,9 +43,12 @@ export async function extractAudio(
   const innertube = await getInnertube();
 
   const VALID_CLIENTS = new Set(["WEB", "ANDROID", "TV_EMBEDDED"]);
+  const defaultOrder = config.nodeType === "residential"
+    ? ["WEB", "ANDROID", "TV_EMBEDDED"]
+    : ["ANDROID", "TV_EMBEDDED", "WEB"];
   const clients = clientOrder?.length
     ? clientOrder.filter((c) => VALID_CLIENTS.has(c))
-    : ["WEB", "ANDROID", "TV_EMBEDDED"];
+    : defaultOrder;
 
   let info: Awaited<ReturnType<typeof innertube.getInfo>> | null = null;
   let lastError: unknown;
