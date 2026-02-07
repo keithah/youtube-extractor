@@ -140,15 +140,66 @@ export async function extractAudio(
 
   const mimeType = bestAudio.mime_type || "audio/webm";
 
-  // Download using chunked Range requests (same pattern as Worker)
+  const title = basicInfo.title || `YouTube Video ${videoId}`;
+  const duration = basicInfo.duration || 0;
+  const author = basicInfo.channel?.name || "YouTube Channel";
+  const thumbnail = basicInfo.thumbnail?.[0]?.url || `https://img.youtube.com/vi/${videoId}/mqdefault.jpg`;
+
   const fetchHeaders: Record<string, string> = {
     "User-Agent": YOUTUBE_USER_AGENT,
     "Origin": YOUTUBE_ORIGIN,
     "Referer": `${YOUTUBE_ORIGIN}/`,
   };
 
-  const firstResponse = await fetch(audioUrl, {
-    headers: { ...fetchHeaders, Range: `bytes=0-${CHUNK_SIZE}` },
+  const data = await downloadAudio(audioUrl, fetchHeaders, videoId);
+  return { data, title, duration, author, thumbnail, mimeType };
+}
+
+const MAX_FULL_GET_SIZE = 50 * 1024 * 1024; // 50MB safety cap for full GET
+
+async function downloadAudio(
+  url: string,
+  headers: Record<string, string>,
+  videoId: string,
+): Promise<Buffer> {
+  // Try full GET first (no Range header) — this is what yt-dlp does and avoids
+  // YouTube's anti-abuse that blocks chunked Range requests on some videos.
+  try {
+    console.log(`[extract] Trying full GET for ${videoId}`);
+    const resp = await fetch(url, { headers });
+    if (resp.ok) {
+      const contentLength = parseInt(resp.headers.get("content-length") || "0", 10);
+      if (contentLength > MAX_FULL_GET_SIZE) {
+        // Too large for memory-safe full download — fall through to chunked
+        console.log(`[extract] Full GET too large (${contentLength} bytes), falling back to chunked`);
+        resp.body?.cancel();
+      } else {
+        const data = Buffer.from(await resp.arrayBuffer());
+        if (data.byteLength > 0) {
+          console.log(`[extract] Downloaded ${data.byteLength} bytes for ${videoId} (full GET)`);
+          return data;
+        }
+      }
+    } else {
+      console.warn(`[extract] Full GET returned ${resp.status} for ${videoId}, trying chunked`);
+    }
+  } catch (error) {
+    console.warn(`[extract] Full GET failed for ${videoId}:`,
+      error instanceof Error ? error.message : String(error));
+  }
+
+  // Fallback: chunked Range requests (needed for Worker compatibility and large files)
+  return downloadChunked(url, headers, videoId);
+}
+
+async function downloadChunked(
+  url: string,
+  headers: Record<string, string>,
+  videoId: string,
+): Promise<Buffer> {
+  console.log(`[extract] Trying chunked download for ${videoId}`);
+  const firstResponse = await fetch(url, {
+    headers: { ...headers, Range: `bytes=0-${CHUNK_SIZE}` },
   });
 
   if (!firstResponse.ok && firstResponse.status !== 206) {
@@ -160,7 +211,6 @@ export async function extractAudio(
     throw new Error("Audio download returned empty response");
   }
 
-  // Parse Content-Range to learn total size
   const contentRange = firstResponse.headers.get("content-range");
   let totalSize = 0;
   if (contentRange) {
@@ -168,22 +218,16 @@ export async function extractAudio(
     if (match) totalSize = parseInt(match[1], 10);
   }
 
-  const title = basicInfo.title || `YouTube Video ${videoId}`;
-  const duration = basicInfo.duration || 0;
-  const author = basicInfo.channel?.name || "YouTube Channel";
-  const thumbnail = basicInfo.thumbnail?.[0]?.url || `https://img.youtube.com/vi/${videoId}/mqdefault.jpg`;
-
   if (totalSize === 0 || firstChunk.byteLength >= totalSize) {
     console.log(`[extract] Downloaded ${firstChunk.byteLength} bytes for ${videoId} (single chunk)`);
-    return { data: firstChunk, title, duration, author, thumbnail, mimeType };
+    return firstChunk;
   }
 
-  // Download remaining chunks sequentially
   const chunks: Buffer[] = [firstChunk];
   for (let start = firstChunk.byteLength; start < totalSize; start += CHUNK_SIZE + 1) {
     const end = Math.min(start + CHUNK_SIZE, totalSize - 1);
-    const resp = await fetch(audioUrl, {
-      headers: { ...fetchHeaders, Range: `bytes=${start}-${end}` },
+    const resp = await fetch(url, {
+      headers: { ...headers, Range: `bytes=${start}-${end}` },
     });
     if (!resp.ok && resp.status !== 206) {
       throw new Error(`Chunk download failed: HTTP ${resp.status} for bytes ${start}-${end}`);
@@ -193,5 +237,5 @@ export async function extractAudio(
 
   const data = Buffer.concat(chunks);
   console.log(`[extract] Downloaded ${data.byteLength} bytes for ${videoId} (${chunks.length} chunks)`);
-  return { data, title, duration, author, thumbnail, mimeType };
+  return data;
 }
