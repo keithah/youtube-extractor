@@ -132,13 +132,18 @@ export async function extractAudio(
     }
   }
 
-  // All youtubei.js clients failed — try yt-dlp as fallback
-  console.log(`[extract] All clients failed for ${videoId}, trying yt-dlp fallback`);
-  try {
-    return await extractWithYtDlp(videoId);
-  } catch (ytdlpError) {
-    console.error(`[extract] yt-dlp fallback also failed for ${videoId}:`,
-      ytdlpError instanceof Error ? ytdlpError.message : String(ytdlpError));
+  // All youtubei.js clients failed — try yt-dlp as fallback (residential only,
+  // datacenter IPs are blocked by YouTube for yt-dlp too)
+  if (config.nodeType === "residential") {
+    console.log(`[extract] All clients failed for ${videoId}, trying yt-dlp fallback`);
+    try {
+      return await extractWithYtDlp(videoId);
+    } catch (ytdlpError) {
+      console.error(`[extract] yt-dlp fallback also failed for ${videoId}:`,
+        ytdlpError instanceof Error ? ytdlpError.message : String(ytdlpError));
+    }
+  } else {
+    console.log(`[extract] All clients failed for ${videoId} (skipping yt-dlp on ${config.nodeType} node)`);
   }
 
   throw lastError || new Error("No client returned playable streaming data");
