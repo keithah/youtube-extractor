@@ -40,10 +40,9 @@ export async function extractAudio(
 ): Promise<ExtractedAudio> {
   const innertube = await getInnertube();
 
-  // Multi-client fallback: ANDROID → TV_EMBEDDED → WEB (with poToken)
-  const clients = poToken
-    ? ["ANDROID", "TV_EMBEDDED", "WEB"]
-    : ["ANDROID", "TV_EMBEDDED"];
+  // WEB first on Node.js (full eval support, URLs work better with Range downloads).
+  // ANDROID URLs have stricter download protections that 403 on chunked requests.
+  const clients = ["WEB", "ANDROID", "TV_EMBEDDED"];
 
   let info: Awaited<ReturnType<typeof innertube.getInfo>> | null = null;
   let lastError: unknown;
